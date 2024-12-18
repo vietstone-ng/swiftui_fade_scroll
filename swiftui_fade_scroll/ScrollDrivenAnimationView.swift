@@ -36,7 +36,7 @@ struct ScrollDrivenAnimationView: View {
                                 }
                             )
                         
-                        Spacer().frame(height: outerGeo.size.height) // Keep bottom space for scrolling
+                        Spacer().frame(height: 50) // Reduced from outerGeo.size.height to 50
                     }
                 }
                 .coordinateSpace(name: "scrollArea")
@@ -62,17 +62,15 @@ struct ScrollDrivenAnimationView: View {
             Text(section1Text)
                 .font(.title2)
                 .opacity(opacityForSection1)
-                .offset(y: yOffsetForSection1)
             
             Text(section2Text)
                 .opacity(opacityForSection2)
-                .offset(y: yOffsetForSection2)
             
             Text(section3Text)
                 .opacity(opacityForSection3)
-                .offset(y: yOffsetForSection3)
         }
         .padding()
+        .offset(y: yOffsetForContent)  // Move offset to entire content block
     }
     
     // Animation calculations
@@ -82,7 +80,7 @@ struct ScrollDrivenAnimationView: View {
         return 1.0 - clamp(progress, lower: 0, upper: 1)
     }
     
-    private var yOffsetForSection1: CGFloat {
+    private var yOffsetForContent: CGFloat {
         -min(scrollOffset/3, 100)
     }
     
@@ -92,21 +90,9 @@ struct ScrollDrivenAnimationView: View {
         return clamp(fadeInProgress, lower: 0, upper: 1) * (1 - clamp(fadeOutProgress, lower: 0, upper: 1))
     }
     
-    private var yOffsetForSection2: CGFloat {
-        let baseOffset = 40.0
-        let progress = (scrollOffset - threshold1) / 100
-        return baseOffset * (1 - clamp(progress, lower: 0, upper: 1))
-    }
-    
     private var opacityForSection3: Double {
         let progress = (scrollOffset - threshold2) / 100
         return clamp(progress, lower: 0, upper: 1)
-    }
-    
-    private var yOffsetForSection3: CGFloat {
-        let baseOffset = 40.0
-        let progress = (scrollOffset - threshold2) / 100
-        return baseOffset * (1 - clamp(progress, lower: 0, upper: 1))
     }
     
     private var opacityForButton: Double {
@@ -130,8 +116,8 @@ struct ScrollOffsetKey: PreferenceKey {
 #Preview {
     ScrollDrivenAnimationView(
         section1Text: "Lorem ipsum dolor sit amet.",
-        section2Text: "Consectetur adipiscing elit. Donec vehicula.",
-        section3Text: "Vestibulum ante ipsum primis in faucibus.",
+        section2Text: "Sed consequat purus tortor. Quisque et nisi quis nisl malesuada molestie. Proin lacus eros, tincidunt at ornare eu, consectetur a lectus. Sed volutpat rutrum diam interdum gravida. Proin fringilla ante nibh, at interdum enim ultricies sit amet. Quisque sed eros sem. Nam vitae tellus odio.",
+        section3Text: "Curabitur fringilla nec urna sit amet eleifend. Suspendisse sodales vitae tellus sit amet dictum. Vivamus condimentum blandit interdum. Donec ac placerat enim. Pellentesque elementum condimentum massa, id condimentum lorem maximus sit amet. Vivamus accumsan imperdiet urna, eget malesuada felis iaculis quis. Nunc orci neque, blandit nec lorem eu, mattis porta erat. Etiam et imperdiet tellus. Nulla ac gravida tellus. Integer imperdiet lorem sed mattis fermentum. Ut ultricies placerat sapien eu scelerisque. In eget lacus a arcu vulputate tempus. Maecenas eget rhoncus tellus. Donec ac justo tortor. Sed rhoncus, arcu sit amet accumsan mattis, urna ex sodales nunc, a volutpat justo erat nec quam.",
         buttonTitle: "Next",
         threshold1: 100,
         threshold2: 300,
