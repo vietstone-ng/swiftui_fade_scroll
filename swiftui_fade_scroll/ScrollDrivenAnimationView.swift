@@ -28,7 +28,7 @@ struct ScrollDrivenAnimationView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         contentLayer
-                            .padding(.top, outerGeo.size.height * 0.5) // Changed from 0.67 to 0.5 for center positioning
+                            .padding(.top, outerGeo.size.height * 0.67) // Changed from 0.67 to 0.5 for center positioning
                             .background(
                                 GeometryReader { geo in
                                     Color.clear
