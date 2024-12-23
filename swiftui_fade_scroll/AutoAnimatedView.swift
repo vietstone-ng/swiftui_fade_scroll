@@ -14,6 +14,25 @@ struct AutoAnimatedView: View {
     @State private var scrollEnabled: Bool = false
     @State private var finalOffset: CGFloat = 0
     @State private var animationCompleted: Bool = false
+    @State private var pauseRemaining: Double = 0
+    
+    private enum AnimationPhase {
+        case section1
+        case pauseForSection2
+        case section2
+        case pauseForSection3
+        case section3
+        case completed
+    }
+    
+    private func currentPhase(for progress: CGFloat) -> AnimationPhase {
+        if progress >= 1.0 { return .completed }
+        if progress >= 0.8 { return .section3 }
+        if progress >= 0.7 { return .pauseForSection3 }
+        if progress >= 0.35 { return .section2 }
+        if progress >= 0.3 { return .pauseForSection2 }
+        return .section1
+    }
     
     var body: some View {
         GeometryReader { geo in
@@ -116,17 +135,35 @@ struct AutoAnimatedView: View {
         guard !isAnimating else { return }
         isAnimating = true
         animationProgress = 0
-        let stepCount = 25
-        let stepDuration = 2.0 / Double(stepCount)
+        
+        let totalDuration: Double = 1.0  // Total animation duration
+        let stepCount = 120  // More steps for smoother animation
+        let stepDuration = totalDuration / Double(stepCount)  // Will be about 0.017s (roughly 60fps)
         var stepIndex = 0
         
         animationTimer = Timer.scheduledTimer(withTimeInterval: stepDuration, repeats: true) { timer in
+            let currentPhase = currentPhase(for: animationProgress)
+            
+            // Handle pauses at transition points
+            if currentPhase == .pauseForSection2 || currentPhase == .pauseForSection3 {
+                if pauseRemaining == 0 {
+                    pauseRemaining = 0.3 // Shorter pause (300ms) to keep things flowing
+                }
+                
+                pauseRemaining -= stepDuration
+                if pauseRemaining > 0 {
+                    return
+                }
+            }
+            
             stepIndex += 1
             let rawFraction = CGFloat(stepIndex) / CGFloat(stepCount)
             let fraction = clamp(rawFraction, lower: 0, upper: 1)
-            withAnimation(.linear(duration: stepDuration)) {
+            
+            withAnimation(.easeInOut(duration: stepDuration)) { // Changed to easeInOut for smoother transitions
                 animationProgress = fraction
             }
+            
             if fraction >= 1.0 {
                 timer.invalidate()
                 animationCompleted = true
