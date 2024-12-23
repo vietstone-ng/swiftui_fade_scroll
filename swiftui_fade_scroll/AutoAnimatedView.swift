@@ -10,23 +10,22 @@ struct AutoAnimatedView: View {
     @State private var isAnimating = false
     @State private var animationTimer: Timer?
     @State private var logTimer: Timer?
+    @State private var contentHeight: CGFloat = 0
+    @State private var scrollEnabled: Bool = false
+    @State private var finalOffset: CGFloat = 0
+    @State private var animationCompleted: Bool = false
     
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        contentLayer
-                            .padding(.top, geo.size.height * 0.5)
-                            .background(
-                                GeometryReader { contentGeo in
-                                    Color.clear.onAppear {
-                                        startAnimation()
-                                    }
-                                }
-                            )
-                        Spacer().frame(height: 30)
+                if animationCompleted {
+                    // After animation: ScrollView if needed
+                    ScrollView {
+                        contentBlock(in: geo)
                     }
+                } else {
+                    // During animation: Direct view with offset
+                    contentBlock(in: geo)
                 }
                 
                 Button(buttonTitle) {}
@@ -38,34 +37,53 @@ struct AutoAnimatedView: View {
                     .opacity(opacityForButton)
                     .padding(.bottom, 32)
             }
+            .onAppear {
+                startAnimation()
+            }
         }
     }
     
-    private var contentLayer: some View {
-        let s1Opacity = opacityForSection1
-        let s2Opacity = opacityForSection2
-        let s3Opacity = opacityForSection3
-        
-        return VStack(alignment: .leading, spacing: 16) {
-            Text(section1Text)
-                .font(.title2)
-                .opacity(s1Opacity)
-            
-            Text(section2Text)
-                .opacity(s2Opacity)
-            
-            Text(section3Text)
-                .opacity(s3Opacity)
+    private func contentBlock(in geo: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(section1Text)
+                    .font(.title2)
+                    .opacity(opacityForSection1)
+                
+                Text(section2Text)
+                    .opacity(opacityForSection2)
+                
+                Text(section3Text)
+                    .opacity(opacityForSection3)
+            }
+            .padding()
+            .background(
+                GeometryReader { contentGeo in
+                    Color.clear
+                        .preference(key: ContentHeightKey.self, value: contentGeo.size.height)
+                }
+            )
         }
-        .padding()
-        .offset(y: -animationProgress * 300) // Increased scroll amount
+        .padding(.top, animationCompleted ? 0 : geo.size.height * 0.5)
+        .offset(y: animationCompleted ? 0 : -animationProgress * geo.size.height * 0.5)
+        .onPreferenceChange(ContentHeightKey.self) { height in
+            contentHeight = height
+        }
+        .modifier(
+            LoggingModifier(
+                animationProgress: animationProgress,
+                s1: opacityForSection1,
+                s2: opacityForSection2,
+                s3: opacityForSection3
+            )
+        )
     }
     
     private var opacityForSection1: Double {
         if animationProgress < 0.3 {
             return 1.0 // Fully visible initially
         } else {
-            return 0.7 // Fade to 70% when section 2 appears
+            return 0.5 // Fade to 50% when section 2 appears
         }
     }
     
@@ -77,7 +95,7 @@ struct AutoAnimatedView: View {
         } else if animationProgress < 0.7 {
             return 1.0 // Stay fully visible longer
         } else {
-            return 0.7 // Fade to 70% when section 3 appears
+            return 0.5 // Fade to 50% when section 3 appears
         }
     }
     
@@ -97,40 +115,60 @@ struct AutoAnimatedView: View {
     private func startAnimation() {
         guard !isAnimating else { return }
         isAnimating = true
+        animationProgress = 0
+        let stepCount = 25
+        let stepDuration = 2.0 / Double(stepCount)
+        var stepIndex = 0
         
-        // Animation timer to update progress
-        let duration: TimeInterval = 2.5 // Reduced from 10.0 to 2.5 seconds
-        let updateInterval: TimeInterval = 0.0083 // ~120fps
-        let progressPerStep = updateInterval / duration
-        
-        animationTimer = Timer.scheduledTimer(withTimeInterval: updateInterval, repeats: true) { timer in
-            if animationProgress >= 1.0 {
-                timer.invalidate()
-                animationTimer = nil
-            } else {
-                withAnimation(.linear(duration: updateInterval)) {
-                    animationProgress += progressPerStep
-                }
+        animationTimer = Timer.scheduledTimer(withTimeInterval: stepDuration, repeats: true) { timer in
+            stepIndex += 1
+            let rawFraction = CGFloat(stepIndex) / CGFloat(stepCount)
+            let fraction = clamp(rawFraction, lower: 0, upper: 1)
+            withAnimation(.linear(duration: stepDuration)) {
+                animationProgress = fraction
             }
-        }
-        
-        // Separate timer for logging
-        logTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            let s1 = opacityForSection1
-            let s2 = opacityForSection2
-            let s3 = opacityForSection3
-            print("Progress: \(String(format: "%.2f", animationProgress)) | Opacities: S1=\(String(format: "%.2f", s1)) S2=\(String(format: "%.2f", s2)) S3=\(String(format: "%.2f", s3))")
-        }
-        
-        // Stop logging timer after animation completes
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-            logTimer?.invalidate()
-            logTimer = nil
+            if fraction >= 1.0 {
+                timer.invalidate()
+                animationCompleted = true
+            }
         }
     }
     
     private func clamp(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
         min(max(value, lower), upper)
+    }
+}
+
+// Add preference key for content height
+struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+// Add the logging modifier
+struct LoggingModifier: AnimatableModifier {
+    var animationProgress: CGFloat
+    var s1: Double
+    var s2: Double
+    var s3: Double
+
+    var animatableData: CGFloat {
+        get { animationProgress }
+        set {
+            animationProgress = newValue
+            print(
+                "animationProgress: \(String(format: "%.2f", animationProgress)),",
+                "Section1: \(String(format: "%.2f", s1))",
+                "Section2: \(String(format: "%.2f", s2))",
+                "Section3: \(String(format: "%.2f", s3))"
+            )
+        }
+    }
+
+    func body(content: Content) -> some View {
+        content
     }
 }
 
